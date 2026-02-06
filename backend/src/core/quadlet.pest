@@ -1,0 +1,9 @@
+file = { SOI ~ (section | comment | empty_line)* ~ EOI }
+section = { "[" ~ section_name ~ "]" ~ NEWLINE ~ (pair | comment | empty_line)* }
+section_name = @{ ASCII_ALPHANUMERIC+ }
+pair = { key ~ "=" ~ value ~ NEWLINE }
+key = @{ (ASCII_ALPHANUMERIC | "-" | "_")+ }
+value = @{ (!NEWLINE ~ ANY)* }
+comment = @{ "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+empty_line = @{ (WHITE_SPACE)* ~ NEWLINE }
+WHITESPACE = _{ " " | "\t" }
