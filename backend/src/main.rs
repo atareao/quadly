@@ -8,7 +8,8 @@ use tower_http::cors::CorsLayer;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use std::{env::var, str::FromStr};
+use std::{env::var, str::FromStr, sync::Arc};
+use crate::models::AppState;
 
 mod api;
 mod core;
@@ -27,6 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configurar base de datos SQLite
     let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite::memory:".to_string());
+    let secret = std::env::var("SECRET").expect("SECRET environment variable must be set");
     info!("DB url: {}", db_url);
     let port: u16 = var("PORT")
         .unwrap_or("3000".to_string())
@@ -45,14 +47,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::permissive(); // En producción deberías restringirlo
 
     let routes = Router::new()
-        .route("/health", get(api::health_router))
-        .route("/login", post(api::login))
-        .route("/quadlets", get(api::list_quadlets))
-        .route("/quadlets/{name}", get(api::get_quadlet))
-        .route("/quadlets/{name}/action", post(api::run_action))
-        .route("/quadlets/{name}/save", post(api::save_quadlet))
-        .route("/quadlets/{name}/logs", post(api::get_quadlet_logs))
-        .with_state(pool);
+        .nest("/health",api::health_router())
+        .fallback(api::fallback_404)
+        .with_state(Arc::new(AppState {
+            pool,
+            secret,
+            static_dir: "static".to_string(),
+        }));
 
     // Definición de las rutas de Quadly
     let app = Router::new().nest("/api/v1", routes).layer(cors);
