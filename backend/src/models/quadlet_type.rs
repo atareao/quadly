@@ -12,6 +12,7 @@ pub enum QuadletType {
     Kube,
     Pod,
     Image,
+    Any,
 }
 
 impl QuadletType {
@@ -24,12 +25,13 @@ impl QuadletType {
             "image" => Some(QuadletType::Image),
             "volume" => Some(QuadletType::Volume),
             "kube" => Some(QuadletType::Kube),
+            "any" => Some(QuadletType::Any),
             _ => None,
         }
     }
 
     pub fn allowed_extensions() -> Vec<&'static str> {
-        vec!["container", "network", "pod", "image", "volume", "kube"]
+        vec!["container", "network", "pod", "image", "volume", "kube", "any"]
     }
 
     /// Devuelve una representación en string del tipo
@@ -41,6 +43,7 @@ impl QuadletType {
             QuadletType::Image => "image",
             QuadletType::Volume => "volume",
             QuadletType::Kube => "kube",
+            QuadletType::Any => "any",
         }
     }
 }

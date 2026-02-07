@@ -2,13 +2,20 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use sqlx::sqlite::SqlitePool;
+use sqlx::{
+    migrate::{
+        Migrator,
+        MigrateDatabase,
+    },
+    sqlite::SqlitePool
+};
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use std::{env::var, str::FromStr, sync::Arc};
+use std::{env::var, str::FromStr, sync::Arc, path::Path};
+use tracing::{debug, error};
 use crate::models::AppState;
 
 mod api;
@@ -36,19 +43,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(3000);
     info!("Port: {}", port);
 
-    let pool = SqlitePool::connect(&db_url).await?;
 
-    // Inicializar DB si es primera vez
-    if let Err(e) = system::init_db(&pool).await {
-        eprintln!("Error inicializando base de datos: {}", e);
+    if !sqlx::Sqlite::database_exists(&db_url)
+            .await
+            .map_err(|e| {
+                error!("Failed to check if database exists: {}", e);
+                e
+            })? {
+        info!("Database does not exist, creating...");
+        sqlx::Sqlite::create_database(&db_url)
+        .await
+        .map_err(|e| {
+            error!("Failed to create database: {}", e);
+            e
+        })?;
+    } else {
+        info!("Database already exists");
     }
+
+    let migrations = if var("RUST_ENV") == Ok("production".to_string()){
+        std::env::current_exe().unwrap().parent().unwrap().join("migrations")
+    }else{
+        let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        Path::new(&crate_dir).join("migrations")
+    };
+    info!("{}", &migrations.display());
+
+    let pool = SqlitePool::connect(&db_url).await.expect("Failed to connect to database");
+
+    Migrator::new(migrations)
+        .await?
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
 
     // Configuración de CORS para permitir al frontend de React comunicarse
     let cors = CorsLayer::permissive(); // En producción deberías restringirlo
 
     let routes = Router::new()
         .nest("/health",api::health_router())
-        .nest("/quadlet",api::quadlet_router())
+        .nest("/quadlets",api::quadlet_router())
         .nest("/auth",api::auth_router())
         .fallback(api::fallback_404)
         .with_state(Arc::new(AppState {

@@ -87,11 +87,7 @@ pub async fn monitor_systemd_events(tx: tokio::sync::broadcast::Sender<Quadlet>)
         // En una versión pro, extraeríamos qué unidad cambió del cuerpo de la señal
 
         // Enviamos una señal de "refresco" al canal
-        let _ = tx.send(Quadlet {
-            name: "update_all".to_string(), // O el nombre de la unidad específica
-            status: QuadletStatus::Unknown,
-            description: "State change detected".into(),
-        });
+        let _ = tx.send(Quadlet::new("any", "any", None).unwrap());
     }
     Ok(())
 }
