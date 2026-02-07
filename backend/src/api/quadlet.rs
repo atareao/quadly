@@ -1,11 +1,13 @@
+use crate::models::{AppState, CustomResponse, Quadlet, QuadletType};
+use crate::system;
 use axum::{
+    extract::{Path, Query},
     http::StatusCode,
-    extract::{Query, Path},
-    Json, response::IntoResponse, routing, Router};
+    response::IntoResponse,
+    routing, Json, Router,
+};
 use serde::Deserialize;
 use std::sync::Arc;
-use crate::system;
-use crate::models::{AppState, Quadlet, QuadletType, CustomResponse};
 
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
@@ -15,6 +17,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/{extension}/{name}", routing::delete(delete_quadlet))
         .route("/{extension}/{name}/action", routing::post(run_action))
         .route("/{extension}/{name}/logs", routing::get(get_quadlet_logs))
+        .route("/discover", routing::get(discover_quadlets))
 }
 
 async fn read_quadlets(Path(extension): Path<String>) -> impl IntoResponse {
@@ -27,7 +30,12 @@ async fn read_quadlets(Path(extension): Path<String>) -> impl IntoResponse {
 async fn read_quadlet(Path((extension, name)): Path<(String, String)>) -> impl IntoResponse {
     let mut quadlet = match Quadlet::new(&name, &extension, None) {
         Ok(quadlet) => quadlet,
-        Err(e) => return CustomResponse::empty(StatusCode::BAD_REQUEST, &format!("Invalid quadlet type: {}. {}", extension, e)),
+        Err(e) => {
+            return CustomResponse::empty(
+                StatusCode::BAD_REQUEST,
+                &format!("Invalid quadlet type: {}. {}", extension, e),
+            )
+        }
     };
     match quadlet.read().await {
         Ok(_) => CustomResponse::api(StatusCode::OK, "quadlet", quadlet),
@@ -41,34 +49,42 @@ async fn save_quadlet(
 ) -> impl IntoResponse {
     let quadlet = match Quadlet::new(&name, &extension, Some(content)) {
         Ok(quadlet) => quadlet,
-        Err(e) => return CustomResponse::empty(StatusCode::BAD_REQUEST, &format!("Error creating quadlet {}.{}: {}", name, extension, e)),
+        Err(e) => {
+            return CustomResponse::empty(
+                StatusCode::BAD_REQUEST,
+                &format!("Error creating quadlet {}.{}: {}", name, extension, e),
+            )
+        }
     };
     // 1. Guardar en disco
     if let Err(e) = quadlet.save().await {
-        return CustomResponse::empty(StatusCode::INTERNAL_SERVER_ERROR, &format!("Error saving quadlet {}.{}: {}", name, extension, e));
+        return CustomResponse::empty(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Error saving quadlet {}.{}: {}", name, extension, e),
+        );
     }
 
     // 2. Avisar a systemd que hay archivos nuevos (daemon-reload)
     // Usamos la acción que definimos en el paso anterior
     if let Err(e) = system::run_unit_action(&name, "daemon-reload").await {
-        return CustomResponse::empty(StatusCode::INTERNAL_SERVER_ERROR, &format!("Saved, but error with daemon reload: {}", e));
+        return CustomResponse::empty(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Saved, but error with daemon reload: {}", e),
+        );
     }
     CustomResponse::api(StatusCode::OK, "saved", quadlet)
 }
 
-async fn delete_quadlet(
-    Path((extension, name)): Path<(String, String)>,
-) -> impl IntoResponse {
+async fn delete_quadlet(Path((extension, name)): Path<(String, String)>) -> impl IntoResponse {
     let quadlet = Quadlet::new(&name, &extension, None).unwrap();
     match quadlet.delete().await {
         Ok(_) => CustomResponse::api(StatusCode::OK, "deleted", quadlet),
-    Err(e) =>
-        CustomResponse::empty(StatusCode::INTERNAL_SERVER_ERROR, &format!("Error deleting quadlet {}.{}: {}", name, extension, e)),
+        Err(e) => CustomResponse::empty(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Error deleting quadlet {}.{}: {}", name, extension, e),
+        ),
     }
-
 }
-
-
 
 #[derive(Deserialize)]
 pub struct ActionRequest {
@@ -109,3 +125,12 @@ async fn get_quadlet_logs(
     }
 }
 
+async fn discover_quadlets() -> impl IntoResponse {
+    match system::discover_quadlets().await {
+        Ok(quadlets) => CustomResponse::api(StatusCode::OK, "quadlets", quadlets),
+        Err(e) => CustomResponse::empty(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &format!("Error discovering quadlets: {}", e),
+        ),
+    }
+}

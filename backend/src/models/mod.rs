@@ -6,7 +6,7 @@ mod response;
 mod token_claims;
 mod user;
 
-pub use quadlet::{ QuadletStatus, Quadlet};
+pub use quadlet::{get_quadlet_dir, Quadlet, QuadletStatus};
 pub use quadlet_type::QuadletType;
 pub use response::CustomResponse;
 pub use token_claims::TokenClaims;
