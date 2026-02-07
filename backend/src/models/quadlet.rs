@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
-use std::path::PathBuf;
 use super::quadlet_type::QuadletType;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use ts_rs::TS;
 
-#[derive(Serialize, Deserialize, TS)]
+#[derive(Serialize, Deserialize, TS, Debug, PartialEq, Clone, Copy)]
 #[ts(export, export_to = "../../frontend/src/bindings/QuadletStatus.ts")]
 pub enum QuadletStatus {
     Active,
@@ -12,6 +12,17 @@ pub enum QuadletStatus {
     Activating,
     Deactivating,
     Unknown,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/QuadletInfo.ts")]
+pub struct QuadletInfo {
+    /// Nombre del quadlet (sin extensión)
+    pub name: String,
+    /// Tipo de quadlet
+    pub kind: QuadletType,
+    /// Status actual del quadlet
+    pub status: Option<QuadletStatus>,
 }
 
 #[derive(Serialize, Deserialize, TS)]
@@ -37,8 +48,14 @@ pub fn get_quadlet_dir() -> PathBuf {
 
 impl Quadlet {
     /// Crea una nueva instancia de Quadlet
-    pub fn new(name: &str, extension: &str, content: Option<String>) -> Result<Self, std::io::Error> {
-        let kind = QuadletType::from_extension(&extension).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Unsupported Quadlet type"))?;
+    pub fn new(
+        name: &str,
+        extension: &str,
+        content: Option<String>,
+    ) -> Result<Self, std::io::Error> {
+        let kind = QuadletType::from_extension(&extension).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "Unsupported Quadlet type")
+        })?;
         Ok(Self {
             name: name.to_string(),
             kind,
@@ -60,7 +77,10 @@ impl Quadlet {
     /// Salva el contenido del Quadlet en el sistema de archivos. Si el Quadlet no tiene contenido, devuelve un error.
     pub async fn save(&self) -> std::io::Result<()> {
         if self.content.is_none() {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Quadlet can not be saved without content"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Quadlet can not be saved without content",
+            ));
         }
         tokio::fs::write(self.path(), &self.content.clone().unwrap()).await
     }
@@ -75,14 +95,24 @@ impl Quadlet {
         tokio::fs::remove_file(self.path()).await
     }
 
-    pub async fn read_by_extension_and_name(extension: &str, name: &str) -> std::io::Result<String> {
+    pub async fn read_by_extension_and_name(
+        extension: &str,
+        name: &str,
+    ) -> std::io::Result<String> {
         let path = get_quadlet_dir().join(format!("{}.{}", name, extension));
         tokio::fs::read_to_string(path).await
     }
 
     pub async fn read_by_extension(extension: &str) -> std::io::Result<Vec<Self>> {
-        if QuadletType::allowed_extensions().iter().find(|&&ext| ext == extension).is_none() {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Unsupported Quadlet type"));
+        if QuadletType::allowed_extensions()
+            .iter()
+            .find(|&&ext| ext == extension)
+            .is_none()
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Unsupported Quadlet type",
+            ));
         }
         let dir = get_quadlet_dir();
         let mut quadlets = Vec::new();
@@ -94,10 +124,14 @@ impl Quadlet {
                         if let Some(name_with_extension) = entry.file_name().to_str() {
                             if name_with_extension.ends_with(extension) {
                                 let mut quadlet = Quadlet::new(
-                                    &name_with_extension.trim_end_matches(extension).trim_end_matches('.').to_string(),
+                                    &name_with_extension
+                                        .trim_end_matches(extension)
+                                        .trim_end_matches('.')
+                                        .to_string(),
                                     &extension.trim_start_matches('.').to_string(),
                                     None,
-                                ).unwrap();
+                                )
+                                .unwrap();
                                 quadlet.read().await?;
                                 quadlets.push(quadlet);
                             }
@@ -108,7 +142,4 @@ impl Quadlet {
         }
         Ok(quadlets)
     }
-
 }
-
-

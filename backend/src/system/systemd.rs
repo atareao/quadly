@@ -133,55 +133,96 @@ pub async fn run_unit_action(name: &str, action: &str) -> Result<()> {
     Ok(())
 }
 
-/// Descubre todos los quadlets disponibles listando las unidades de systemd
-pub async fn discover_quadlets() -> Result<Vec<String>> {
-    let conn = Connection::session().await?;
-    let manager = SystemdManagerProxy::new(&conn).await?;
+/// Descubre todos los quadlets disponibles escaneando el directorio de quadlets
+pub async fn discover_quadlets() -> Result<Vec<crate::models::QuadletInfo>> {
+    let quadlet_dir = crate::models::get_quadlet_dir();
+    let mut quadlet_infos = Vec::new();
 
-    // Lista todas las unidades
-    let units = manager.list_units().await?;
+    // Si el directorio no existe, crear una lista vacía
+    if !quadlet_dir.exists() {
+        return Ok(quadlet_infos);
+    }
 
-    let mut quadlet_names = Vec::new();
+    // Leer todos los archivos en el directorio de quadlets
+    let mut entries = tokio::fs::read_dir(&quadlet_dir).await?;
 
-    for (
-        unit_name,
-        _description,
-        _load_state,
-        _active_state,
-        _sub_state,
-        _following,
-        _unit_path,
-        _job_id,
-        _job_type,
-        _job_path,
-    ) in units
-    {
-        // Los quadlets generan servicios con sufijo .service
-        if unit_name.ends_with(".service") {
-            // Verificar si el servicio fue generado por un archivo quadlet
-            // Los servicios de quadlet típicamente tienen archivos .container, .network, etc.
-            let base_name = unit_name.trim_end_matches(".service");
+    while let Some(entry) = entries.next_entry().await? {
+        if let Ok(file_type) = entry.file_type().await {
+            if file_type.is_file() {
+                if let Some(file_name) = entry.file_name().to_str() {
+                    // Verificar si el archivo tiene una extensión de quadlet válida
+                    for ext in ["container", "network", "volume", "kube", "pod", "image"] {
+                        if file_name.ends_with(&format!(".{}", ext)) {
+                            let name = file_name.trim_end_matches(&format!(".{}", ext)).to_string();
 
-            // Verificar si existe un archivo quadlet correspondiente
-            if is_quadlet_service(&base_name).await {
-                quadlet_names.push(base_name.to_string());
+                            if let Some(quadlet_type) =
+                                crate::models::QuadletType::from_extension(ext)
+                            {
+                                // Para containers, verificar el estado del servicio systemd
+                                let status = if ext == "container" {
+                                    Some(get_status(&name).await)
+                                } else {
+                                    // Para volumes, networks, etc., no tienen servicios systemd asociados
+                                    Some(crate::models::QuadletStatus::Unknown)
+                                };
+
+                                quadlet_infos.push(crate::models::QuadletInfo {
+                                    name,
+                                    kind: quadlet_type,
+                                    status,
+                                });
+                                break; // Salir del bucle de extensiones una vez que se encuentra una
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
-    Ok(quadlet_names)
+    Ok(quadlet_infos)
 }
 
-/// Verifica si un servicio fue generado por un archivo quadlet
-async fn is_quadlet_service(name: &str) -> bool {
+/// Verifica si un servicio fue generado por un archivo quadlet y devuelve su tipo
+async fn get_quadlet_type(name: &str) -> Option<crate::models::QuadletType> {
     let quadlet_dir = crate::models::get_quadlet_dir();
     let extensions = ["container", "network", "volume", "kube", "pod", "image"];
 
     for ext in extensions {
         let path = quadlet_dir.join(format!("{}.{}", name, ext));
         if path.exists() {
-            return true;
+            return crate::models::QuadletType::from_extension(ext);
         }
     }
-    false
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_discover_quadlets() {
+        let result = discover_quadlets().await;
+
+        match result {
+            Ok(quadlets) => {
+                println!("Quadlets encontrados: {}", quadlets.len());
+                for quadlet in &quadlets {
+                    println!(
+                        "- {}: {:?} ({:?})",
+                        quadlet.name, quadlet.kind, quadlet.status
+                    );
+                }
+                assert!(
+                    quadlets.len() > 0,
+                    "Deberíamos encontrar al menos algunos quadlets"
+                );
+            }
+            Err(e) => {
+                println!("Error: {}", e);
+                panic!("Error al descubrir quadlets: {}", e);
+            }
+        }
+    }
 }

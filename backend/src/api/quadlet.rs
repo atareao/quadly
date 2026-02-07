@@ -1,4 +1,4 @@
-use crate::models::{AppState, CustomResponse, Quadlet, QuadletType};
+use crate::models::{AppState, CustomResponse, Quadlet, QuadletInfo, QuadletStatus, QuadletType};
 use crate::system;
 use axum::{
     extract::{Path, Query},
@@ -91,8 +91,14 @@ pub struct ActionRequest {
     pub action: String, // "start", "stop", "restart", "daemon-reload"
 }
 
+#[derive(Deserialize)]
+pub struct DiscoverQuery {
+    pub kind: Option<String>,
+    pub status: Option<String>,
+}
+
 async fn run_action(
-    Path(name): Path<String>,
+    Path((extension, name)): Path<(String, String)>,
     Json(payload): Json<ActionRequest>,
 ) -> impl IntoResponse {
     match system::run_unit_action(&name, &payload.action).await {
@@ -125,9 +131,36 @@ async fn get_quadlet_logs(
     }
 }
 
-async fn discover_quadlets() -> impl IntoResponse {
+async fn discover_quadlets(Query(params): Query<DiscoverQuery>) -> impl IntoResponse {
     match system::discover_quadlets().await {
-        Ok(quadlets) => CustomResponse::api(StatusCode::OK, "quadlets", quadlets),
+        Ok(mut quadlets) => {
+            // Filtrar por kind si se especifica
+            if let Some(kind_filter) = &params.kind {
+                if let Some(quadlet_type) = crate::models::QuadletType::from_extension(kind_filter)
+                {
+                    quadlets.retain(|q| q.kind == quadlet_type);
+                }
+            }
+
+            // Filtrar por status si se especifica
+            if let Some(status_filter) = &params.status {
+                let target_status = match status_filter.to_lowercase().as_str() {
+                    "active" => Some(crate::models::QuadletStatus::Active),
+                    "inactive" => Some(crate::models::QuadletStatus::Inactive),
+                    "failed" => Some(crate::models::QuadletStatus::Failed),
+                    "activating" => Some(crate::models::QuadletStatus::Activating),
+                    "deactivating" => Some(crate::models::QuadletStatus::Deactivating),
+                    "unknown" => Some(crate::models::QuadletStatus::Unknown),
+                    _ => None,
+                };
+
+                if let Some(target) = target_status {
+                    quadlets.retain(|q| q.status == Some(target));
+                }
+            }
+
+            CustomResponse::api(StatusCode::OK, "quadlets", quadlets)
+        }
         Err(e) => CustomResponse::empty(
             StatusCode::INTERNAL_SERVER_ERROR,
             &format!("Error discovering quadlets: {}", e),
