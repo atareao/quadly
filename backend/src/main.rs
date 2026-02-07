@@ -48,6 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let routes = Router::new()
         .nest("/health",api::health_router())
+        .nest("/quadlet",api::quadlet_router())
+        .nest("/auth",api::auth_router())
         .fallback(api::fallback_404)
         .with_state(Arc::new(AppState {
             pool,

@@ -10,5 +10,5 @@ pub use health::router as health_router;
 pub use auth::router as auth_router;
 
 pub async fn fallback_404() -> impl IntoResponse {
-    CustomResponse::empty( StatusCode::NOT_FOUND, "Not found")
+    CustomResponse::<()>::empty( StatusCode::NOT_FOUND, "Not found")
 }

@@ -19,7 +19,7 @@ pub fn router() -> Router<Arc<AppState>> {
 
 async fn read_quadlets(Path(extension): Path<String>) -> impl IntoResponse {
     match Quadlet::read_by_extension(&extension).await {
-        Ok(quadlets) => CustomResponse::api(StatusCode::OK, "result", quadlets)
+        Ok(quadlets) => CustomResponse::api(StatusCode::OK, "result", quadlets),
         Err(e) => CustomResponse::empty(StatusCode::NOT_FOUND, &format!("Error: {}", e)),
     }
 }

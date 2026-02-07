@@ -6,9 +6,8 @@ mod response;
 mod token_claims;
 mod user;
 
-pub use error::AppError;
-pub use quadlet::{QuadletInfo, QuadletStatus, Quadlet};
-pub use quedlet_type::QuadletType;
+pub use quadlet::{ QuadletStatus, Quadlet};
+pub use quadlet_type::QuadletType;
 pub use response::CustomResponse;
 pub use token_claims::TokenClaims;
 pub use user::{NewUser, User, UserPass};

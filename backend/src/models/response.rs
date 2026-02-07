@@ -12,18 +12,19 @@ pub enum CustomResponse<T> {
     Empty(EmptyResponse),
 }
 
+
 impl<T> CustomResponse<T>
 where
     T: Serialize,
 {
-    pub fn api(status: StatusCode, message: &str, data: T) -> Self {
-        CustomResponse::Api(ApiResponse::new(status, message, data))
-    }
     pub fn empty(status: StatusCode, message: &str) -> Self {
         CustomResponse::Empty(EmptyResponse {
             status,
             message: message.to_string(),
         })
+    }
+    pub fn api(status: StatusCode, message: &str, data: T) -> Self {
+        CustomResponse::Api(ApiResponse::new(status, message, data))
     }
 }
 
@@ -47,7 +48,7 @@ where
     }
 }
 
-impl<T> From<ApiResponse<T>> for CustomResponse
+impl<T> From<ApiResponse<T>> for CustomResponse<T>
 where
     T: Serialize,
 {
@@ -56,7 +57,10 @@ where
     }
 }
 
-impl From<EmptyResponse> for CustomResponse {
+impl<T> From<EmptyResponse> for CustomResponse<T>
+where
+    T: Serialize,
+{
     fn from(empty_response: EmptyResponse) -> Self {
         CustomResponse::Empty(empty_response)
     }
@@ -72,7 +76,10 @@ where
     }
 }
 
-impl IntoResponse for CustomResponse {
+impl<T> IntoResponse for CustomResponse<T>
+where
+    T: Serialize,
+{
     fn into_response(self) -> Response {
         match self {
             CustomResponse::Api(api_response) => api_response.into_response(),

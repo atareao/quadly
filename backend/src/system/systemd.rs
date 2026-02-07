@@ -1,4 +1,4 @@
-use crate::models::{QuadletInfo, QuadletStatus};
+use crate::models::{Quadlet, QuadletStatus};
 use anyhow::Result;
 use futures_util::StreamExt;
 use zbus::{Connection, fdo::PropertiesProxy, proxy};
@@ -69,7 +69,7 @@ pub async fn get_status(name: &str) -> QuadletStatus {
     result.unwrap_or(QuadletStatus::Inactive)
 }
 
-pub async fn monitor_systemd_events(tx: tokio::sync::broadcast::Sender<QuadletInfo>) -> Result<()> {
+pub async fn monitor_systemd_events(tx: tokio::sync::broadcast::Sender<Quadlet>) -> Result<()> {
     let conn = Connection::session().await?;
 
     // Nos suscribimos a los cambios de propiedades del Manager de systemd
@@ -87,7 +87,7 @@ pub async fn monitor_systemd_events(tx: tokio::sync::broadcast::Sender<QuadletIn
         // En una versión pro, extraeríamos qué unidad cambió del cuerpo de la señal
 
         // Enviamos una señal de "refresco" al canal
-        let _ = tx.send(QuadletInfo {
+        let _ = tx.send(Quadlet {
             name: "update_all".to_string(), // O el nombre de la unidad específica
             status: QuadletStatus::Unknown,
             description: "State change detected".into(),

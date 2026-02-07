@@ -26,12 +26,10 @@ pub fn api_user_router() -> Router<Arc<AppState>> {
     Router::new().route("/", routing::get(read))
 }
 
-type Result = std::result::Result<CustomResponse, CustomResponse>;
-
 pub async fn login(
     State(app_state): State<Arc<AppState>>,
     Json(user_pass): Json<UserPass>,
-) -> Result {
+) -> impl IntoResponse {
     //) -> Result<Json<serde_json::Value>,(StatusCode, Json<serde_json::Value>)>{
     tracing::info!("init login");
     tracing::info!("User pass: {:?}", user_pass);
@@ -39,7 +37,7 @@ pub async fn login(
         .await
         .map_err(|e| {
             let message = &format!("Error: {}", e);
-            CustomResponse::empty(StatusCode::FORBIDDEN, message)
+            CustomResponse::<()>::empty(StatusCode::FORBIDDEN, message)
         })?
         .ok_or_else(|| {
             let message = "Invalid name or password";
