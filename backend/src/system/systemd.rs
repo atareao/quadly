@@ -226,3 +226,21 @@ mod tests {
         }
     }
 }
+
+/// Ejecuta daemon-reload para recargar las configuraciones de systemd
+pub async fn daemon_reload() -> Result<()> {
+    let conn = Connection::session()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to connect to systemd session bus: {}", e))?;
+
+    let manager = SystemdManagerProxy::new(&conn)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create systemd manager proxy: {}", e))?;
+
+    manager
+        .reload()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to reload systemd daemon: {}", e))?;
+
+    Ok(())
+}

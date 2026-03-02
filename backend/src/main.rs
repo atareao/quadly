@@ -3,20 +3,17 @@ use axum::{
     Router,
 };
 use sqlx::{
-    migrate::{
-        Migrator,
-        MigrateDatabase,
-    },
-    sqlite::SqlitePool
+    migrate::{MigrateDatabase, Migrator},
+    sqlite::SqlitePool,
 };
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use std::{env::var, str::FromStr, sync::Arc, path::Path};
-use tracing::{debug, error};
 use crate::models::AppState;
+use std::{env::var, path::Path, str::FromStr, sync::Arc};
+use tracing::{debug, error};
 
 mod api;
 mod core;
@@ -43,17 +40,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(3000);
     info!("Port: {}", port);
 
-
-    if !sqlx::Sqlite::database_exists(&db_url)
-            .await
-            .map_err(|e| {
-                error!("Failed to check if database exists: {}", e);
-                e
-            })? {
+    if !sqlx::Sqlite::database_exists(&db_url).await.map_err(|e| {
+        error!("Failed to check if database exists: {}", e);
+        e
+    })? {
         info!("Database does not exist, creating...");
-        sqlx::Sqlite::create_database(&db_url)
-        .await
-        .map_err(|e| {
+        sqlx::Sqlite::create_database(&db_url).await.map_err(|e| {
             error!("Failed to create database: {}", e);
             e
         })?;
@@ -61,15 +53,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Database already exists");
     }
 
-    let migrations = if var("RUST_ENV") == Ok("production".to_string()){
-        std::env::current_exe().unwrap().parent().unwrap().join("migrations")
-    }else{
+    let migrations = if var("RUST_ENV") == Ok("production".to_string()) {
+        std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("migrations")
+    } else {
         let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         Path::new(&crate_dir).join("migrations")
     };
     info!("{}", &migrations.display());
 
-    let pool = SqlitePool::connect(&db_url).await.expect("Failed to connect to database");
+    let pool = SqlitePool::connect(&db_url)
+        .await
+        .expect("Failed to connect to database");
 
     Migrator::new(migrations)
         .await?
@@ -81,9 +79,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::permissive(); // En producción deberías restringirlo
 
     let routes = Router::new()
-        .nest("/health",api::health_router())
-        .nest("/quadlets",api::quadlet_router())
-        .nest("/auth",api::auth_router())
+        .nest("/health", api::health_router())
+        .nest("/quadlets", api::quadlet_router())
+        .nest("/auth", api::auth_router())
+        .nest("/git", api::git_router())
         .fallback(api::fallback_404)
         .with_state(Arc::new(AppState {
             pool,

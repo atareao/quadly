@@ -46,6 +46,12 @@ pub fn get_quadlet_dir() -> PathBuf {
     PathBuf::from(home).join(".config/containers/systemd")
 }
 
+pub fn get_git_repo_dir() -> PathBuf {
+    // Directorio separado para repositorios git: ~/.config/containers/repositories/
+    let home = std::env::var("HOME").expect("No se pudo encontrar la variable HOME");
+    PathBuf::from(home).join(".config/containers/repositories")
+}
+
 impl Quadlet {
     /// Crea una nueva instancia de Quadlet
     pub fn new(
