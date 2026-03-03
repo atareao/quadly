@@ -82,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/health", api::health_router())
         .nest("/quadlets", api::quadlet_router())
         .nest("/auth", api::auth_router())
+        .nest("/config", api::config_router())
         .nest("/git", api::git_router())
         .fallback(api::fallback_404)
         .with_state(Arc::new(AppState {

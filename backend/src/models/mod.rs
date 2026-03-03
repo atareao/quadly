@@ -1,4 +1,5 @@
 use sqlx::SqlitePool;
+mod config;
 mod error;
 mod quadlet;
 mod quadlet_type;
@@ -6,6 +7,7 @@ mod response;
 mod token_claims;
 mod user;
 
+pub use config::{Config, NewConfig, UpdateConfig};
 pub use quadlet::{get_git_repo_dir, get_quadlet_dir, Quadlet, QuadletInfo, QuadletStatus};
 pub use quadlet_type::QuadletType;
 pub use response::CustomResponse;
