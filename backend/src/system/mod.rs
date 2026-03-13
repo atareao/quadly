@@ -3,6 +3,7 @@ mod git;
 mod logs;
 mod quadlet;
 mod systemd;
+mod template;
 
 pub use db::init_db;
 pub use git::{
@@ -15,3 +16,4 @@ pub use git::{
 };
 pub use logs::get_service_logs;
 pub use systemd::{daemon_reload, discover_quadlets, get_status, run_unit_action};
+pub use template::TemplateManager;

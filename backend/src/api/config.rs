@@ -14,7 +14,7 @@ pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/", routing::get(get_all_configs).post(create_config))
         .route(
-            "/:key",
+            "/{key}",
             routing::get(get_config)
                 .put(update_config)
                 .delete(delete_config),
